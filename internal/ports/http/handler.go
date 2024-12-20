@@ -26,8 +26,6 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/wallet/deposit", h.depositHandler)
 	mux.HandleFunc("/wallet/withdraw", h.withdrawHandler)
 	mux.HandleFunc("/wallet/transfer", h.transferHandler)
-	// GET /wallet/{user_id}/balance
-	// GET /wallet/{user_id}/transactions?limit=10&offset=0
 	mux.HandleFunc("/wallet/", h.userWalletHandler)
 }
 
@@ -39,7 +37,7 @@ func (h *Handler) depositHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req DepositRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, "invalid request body"+err.Error(), http.StatusBadRequest)
 		return
 	}
 

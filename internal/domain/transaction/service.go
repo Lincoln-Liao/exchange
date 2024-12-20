@@ -7,6 +7,12 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+type TransactionServiceInterface interface {
+	LogTransaction(ctx context.Context, fromUserID, toUserID string, amount int64, currency string, tType TransactionType) (Transaction, error)
+	GetTransactionHistory(ctx context.Context, userID string, limit, offset int) ([]Transaction, error)
+	GetTransactionByID(ctx context.Context, id string) (Transaction, error)
+}
+
 type TransactionService struct {
 	repository TransactionRepository
 }
@@ -46,7 +52,7 @@ func (s *TransactionService) GetTransactionHistory(ctx context.Context, userID s
 
 	txs, err := s.repository.ListTransactionsByUserID(ctx, userID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, ErrDatabaseFailure
 	}
 
 	return txs, nil

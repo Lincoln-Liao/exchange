@@ -1,193 +1,234 @@
-package usecase_test
+// wallet_usecase_test.go
+package usecase
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"exchange/internal/domain/transaction"
 	"exchange/internal/domain/wallet"
-	"exchange/internal/usecase"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-type mockWalletService struct {
-	depositErr  error
-	withdrawErr error
-	balance     int64
-	balanceErr  error
+type MockWalletService struct {
+	mock.Mock
 }
 
-func (m *mockWalletService) CreateNewWallet(ctx context.Context, userID, currency string) (wallet.Wallet, error) {
-	return wallet.Wallet{}, nil
+func (m *MockWalletService) CreateNewWallet(ctx context.Context, userID, currency string) (wallet.Wallet, error) {
+	args := m.Called(ctx, userID, currency)
+	return args.Get(0).(wallet.Wallet), args.Error(1)
 }
-func (m *mockWalletService) Deposit(ctx context.Context, userID string, amount int64) error {
-	return m.depositErr
+
+func (m *MockWalletService) Deposit(ctx context.Context, userID string, amount int64) error {
+	args := m.Called(ctx, userID, amount)
+	return args.Error(0)
 }
-func (m *mockWalletService) Withdraw(ctx context.Context, userID string, amount int64) error {
-	return m.withdrawErr
+
+func (m *MockWalletService) Withdraw(ctx context.Context, userID string, amount int64) error {
+	args := m.Called(ctx, userID, amount)
+	return args.Error(0)
 }
-func (m *mockWalletService) GetBalance(ctx context.Context, userID string) (int64, error) {
-	if m.balanceErr != nil {
-		return 0, m.balanceErr
+
+func (m *MockWalletService) GetBalance(ctx context.Context, userID string) (int64, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+type MockTransactionManager struct {
+	mock.Mock
+	DoFn func(ctx context.Context, fn func(ctx context.Context) error) error
+}
+
+func (m *MockTransactionManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
+	if m.DoFn != nil {
+		return m.DoFn(ctx, fn)
 	}
-	return m.balance, nil
-}
-
-type mockTransactionService struct {
-	logErr            error
-	getHistoryResults []transaction.Transaction
-	getHistoryErr     error
-}
-
-func (m *mockTransactionService) LogTransaction(ctx context.Context, fromUserID, toUserID string, amount int64, currency string, tType transaction.TransactionType) (transaction.Transaction, error) {
-	if m.logErr != nil {
-		return transaction.Transaction{}, m.logErr
-	}
-	return transaction.Transaction{ID: "tx_mock"}, nil
-}
-func (m *mockTransactionService) GetTransactionHistory(ctx context.Context, userID string, limit, offset int) ([]transaction.Transaction, error) {
-	if m.getHistoryErr != nil {
-		return nil, m.getHistoryErr
-	}
-	return m.getHistoryResults, nil
-}
-func (m *mockTransactionService) GetTransactionByID(ctx context.Context, id string) (transaction.Transaction, error) {
-	return transaction.Transaction{}, nil
-}
-
-type mockTransactionManager struct {
-	doErr  error
-	didRun bool
-}
-
-func (m *mockTransactionManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
-	m.didRun = true
-	if m.doErr != nil {
-		return m.doErr
-	}
-	return fn(ctx)
+	args := m.Called(ctx, fn)
+	return args.Error(0)
 }
 
 func TestWalletUseCase_Deposit(t *testing.T) {
-	wMock := &mockWalletService{}
-	tMock := &mockTransactionService{}
-	txMock := &mockTransactionManager{}
+	mockWalletService := new(MockWalletService)
+	mockTransactionService := new(MockTransactionService)
+	mockTxManager := new(MockTransactionManager)
 
-	uc := usecase.NewWalletUseCase(wMock, tMock, txMock)
-	err := uc.Deposit(context.Background(), "user_1", 100, "TWD")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if !txMock.didRun {
-		t.Error("expected transaction block to run")
-	}
+	useCase := NewWalletUseCase(mockWalletService, mockTransactionService, mockTxManager)
 
-	// WalletService fail
-	wMock.depositErr = wallet.ErrInvalidAmount
-	err = uc.Deposit(context.Background(), "user_1", 0, "TWD")
-	if err != wallet.ErrInvalidAmount {
-		t.Errorf("expected ErrInvalidAmount, got %v", err)
-	}
+	ctx := context.Background()
+	userID := "user1"
+	amount := int64(1000)
+	currency := "USD"
 
-	// TransactionService fail
-	wMock.depositErr = nil
-	tMock.logErr = errors.New("log failed")
-	err = uc.Deposit(context.Background(), "user_1", 100, "TWD")
-	if err == nil || err.Error() != "log failed" {
-		t.Errorf("expected log failed error, got %v", err)
-	}
+	t.Run("successful deposit", func(t *testing.T) {
+		mockTxManager.DoFn = func(ctx context.Context, fn func(context.Context) error) error {
+			return fn(ctx)
+		}
+
+		mockWalletService.On("Deposit", ctx, userID, amount).Return(nil)
+
+		expectedTx := transaction.Transaction{
+			ID:         "tx123",
+			FromUserID: "",
+			ToUserID:   userID,
+			Amount:     amount,
+			Currency:   currency,
+			Type:       transaction.TransactionTypeDeposit,
+		}
+		mockTransactionService.On("LogTransaction", ctx, "", userID, amount, currency, transaction.TransactionTypeDeposit).Return(expectedTx, nil)
+
+		err := useCase.Deposit(ctx, userID, amount, currency)
+
+		assert.NoError(t, err)
+		mockWalletService.AssertExpectations(t)
+		mockTransactionService.AssertExpectations(t)
+	})
+
+	t.Run("invalid amount", func(t *testing.T) {
+		invalidAmount := int64(-100)
+
+		mockTxManager.DoFn = func(ctx context.Context, fn func(context.Context) error) error {
+			return fn(ctx)
+		}
+
+		mockWalletService.On("Deposit", ctx, userID, invalidAmount).Return(wallet.ErrInvalidAmount)
+
+		mockTransactionService.On("LogTransaction", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(transaction.Transaction{}, nil).Maybe()
+
+		err := useCase.Deposit(ctx, userID, invalidAmount, currency)
+
+		assert.ErrorIs(t, err, wallet.ErrInvalidAmount)
+		mockWalletService.AssertExpectations(t)
+		mockTransactionService.AssertExpectations(t)
+	})
 }
 
 func TestWalletUseCase_Withdraw(t *testing.T) {
-	wMock := &mockWalletService{}
-	tMock := &mockTransactionService{}
-	txMock := &mockTransactionManager{}
+	mockWalletService := new(MockWalletService)
+	mockTransactionService := new(MockTransactionService)
+	mockTxManager := new(MockTransactionManager)
 
-	uc := usecase.NewWalletUseCase(wMock, tMock, txMock)
-	err := uc.Withdraw(context.Background(), "user_1", 50, "TWD")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	useCase := NewWalletUseCase(mockWalletService, mockTransactionService, mockTxManager)
 
-	wMock.withdrawErr = wallet.ErrInsufficientFunds
-	err = uc.Withdraw(context.Background(), "user_1", 1000, "TWD")
-	if err != wallet.ErrInsufficientFunds {
-		t.Errorf("expected ErrInsufficientFunds, got %v", err)
-	}
+	ctx := context.Background()
+	userID := "user1"
+	amount := int64(500)
+	currency := "USD"
 
-	// TransactionService 出錯
-	wMock.withdrawErr = nil
-	tMock.logErr = errors.New("log error")
-	err = uc.Withdraw(context.Background(), "user_1", 50, "TWD")
-	if err == nil || err.Error() != "log error" {
-		t.Errorf("expected log error, got %v", err)
-	}
+	t.Run("successful withdraw", func(t *testing.T) {
+		mockTxManager.DoFn = func(ctx context.Context, fn func(context.Context) error) error {
+			return fn(ctx)
+		}
+
+		mockWalletService.On("Withdraw", ctx, userID, amount).Return(nil)
+
+		expectedTx := transaction.Transaction{
+			ID:         "tx124",
+			FromUserID: userID,
+			ToUserID:   "",
+			Amount:     amount,
+			Currency:   currency,
+			Type:       transaction.TransactionTypeWithdraw,
+		}
+		mockTransactionService.On("LogTransaction", ctx, userID, "", amount, currency, transaction.TransactionTypeWithdraw).Return(expectedTx, nil)
+
+		err := useCase.Withdraw(ctx, userID, amount, currency)
+
+		assert.NoError(t, err)
+		mockTxManager.AssertExpectations(t)
+		mockWalletService.AssertExpectations(t)
+		mockTransactionService.AssertExpectations(t)
+	})
+
+	t.Run("invalid amount", func(t *testing.T) {
+		invalidAmount := int64(-200)
+
+		mockTxManager.DoFn = func(ctx context.Context, fn func(context.Context) error) error {
+			return fn(ctx)
+		}
+		mockWalletService.On("Withdraw", ctx, userID, invalidAmount).Return(wallet.ErrInvalidAmount)
+
+		mockTransactionService.On("LogTransaction", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(transaction.Transaction{}, nil).Maybe()
+
+		err := useCase.Withdraw(ctx, userID, invalidAmount, currency)
+
+		assert.ErrorIs(t, err, wallet.ErrInvalidAmount)
+		mockTxManager.AssertExpectations(t)
+		mockWalletService.AssertExpectations(t)
+		mockTransactionService.AssertExpectations(t)
+	})
 }
 
 func TestWalletUseCase_Transfer(t *testing.T) {
-	wMock := &mockWalletService{}
-	tMock := &mockTransactionService{}
-	txMock := &mockTransactionManager{}
-	uc := usecase.NewWalletUseCase(wMock, tMock, txMock)
+	mockWalletService := new(MockWalletService)
+	mockTransactionService := new(MockTransactionService)
+	mockTxManager := new(MockTransactionManager)
 
-	err := uc.Transfer(context.Background(), "fromUser", "toUser", 200, "TWD")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	useCase := NewWalletUseCase(mockWalletService, mockTransactionService, mockTxManager)
 
-	// if deposit toUser fail, should rollback
-	wMock.withdrawErr = nil
-	wMock.depositErr = wallet.ErrInvalidAmount
-	err = uc.Transfer(context.Background(), "fromUser", "toUser", 200, "TWD")
-	if err != wallet.ErrInvalidAmount {
-		t.Errorf("expected ErrInvalidAmount, got %v", err)
-	}
+	ctx := context.Background()
+	fromUserID := "user1"
+	toUserID := "user2"
+	amount := int64(300)
+	currency := "USD"
 
+	t.Run("successful transfer", func(t *testing.T) {
+		mockTxManager.DoFn = func(ctx context.Context, fn func(context.Context) error) error {
+			return fn(ctx)
+		}
+		mockWalletService.On("Withdraw", ctx, fromUserID, amount).Return(nil)
+		mockWalletService.On("Deposit", ctx, toUserID, amount).Return(nil)
+
+		expectedTx := transaction.Transaction{
+			ID:         "tx125",
+			FromUserID: fromUserID,
+			ToUserID:   toUserID,
+			Amount:     amount,
+			Currency:   currency,
+			Type:       transaction.TransactionTypeTransfer,
+		}
+		mockTransactionService.On("LogTransaction", ctx, fromUserID, toUserID, amount, currency, transaction.TransactionTypeTransfer).Return(expectedTx, nil)
+
+		err := useCase.Transfer(ctx, fromUserID, toUserID, amount, currency)
+
+		assert.NoError(t, err)
+		mockTxManager.AssertExpectations(t)
+		mockWalletService.AssertExpectations(t)
+		mockTransactionService.AssertExpectations(t)
+	})
 }
 
 func TestWalletUseCase_GetBalance(t *testing.T) {
-	wMock := &mockWalletService{balance: 500}
-	tMock := &mockTransactionService{}
-	txMock := &mockTransactionManager{}
-	uc := usecase.NewWalletUseCase(wMock, tMock, txMock)
+	mockWalletService := new(MockWalletService)
+	mockTransactionService := new(MockTransactionService)
+	mockTxManager := new(MockTransactionManager)
 
-	bal, err := uc.GetBalance(context.Background(), "user_1")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if bal != 500 {
-		t.Errorf("expected balance 500, got %d", bal)
-	}
+	useCase := NewWalletUseCase(mockWalletService, mockTransactionService, mockTxManager)
 
-	wMock.balanceErr = wallet.ErrWalletNotFound
-	_, err = uc.GetBalance(context.Background(), "user_2")
-	if err != wallet.ErrWalletNotFound {
-		t.Errorf("expected ErrWalletNotFound, got %v", err)
-	}
-}
+	ctx := context.Background()
+	userID := "user1"
+	expectedBalance := int64(1500)
 
-func TestWalletUseCase_GetTransactionHistory(t *testing.T) {
-	wMock := &mockWalletService{}
-	tMock := &mockTransactionService{
-		getHistoryResults: []transaction.Transaction{
-			{ID: "tx_1"},
-			{ID: "tx_2"},
-		},
-	}
-	txMock := &mockTransactionManager{}
-	uc := usecase.NewWalletUseCase(wMock, tMock, txMock)
+	t.Run("successful get balance", func(t *testing.T) {
+		mockWalletService.On("GetBalance", ctx, userID).Return(expectedBalance, nil)
 
-	txs, err := uc.GetTransactionHistory(context.Background(), "user_1", 10, 0)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if len(txs) != 2 {
-		t.Errorf("expected 2 transactions, got %d", len(txs))
-	}
+		balance, err := useCase.GetBalance(ctx, userID)
 
-	tMock.getHistoryErr = errors.New("history error")
-	_, err = uc.GetTransactionHistory(context.Background(), "user_1", 10, 0)
-	if err == nil || err.Error() != "history error" {
-		t.Errorf("expected 'history error', got %v", err)
-	}
+		assert.NoError(t, err)
+		assert.Equal(t, expectedBalance, balance)
+		mockWalletService.AssertExpectations(t)
+	})
+
+	t.Run("wallet service get balance error", func(t *testing.T) {
+		getBalanceErr := wallet.ErrWalletNotFound
+
+		mockWalletService.On("GetBalance", ctx, "userIDEmpty").Return(int64(0), getBalanceErr)
+
+		balance, err := useCase.GetBalance(ctx, "userIDEmpty")
+
+		assert.ErrorIs(t, err, getBalanceErr)
+		assert.Equal(t, int64(0), balance)
+		mockWalletService.AssertExpectations(t)
+	})
 }

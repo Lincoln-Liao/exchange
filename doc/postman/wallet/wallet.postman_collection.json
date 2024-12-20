@@ -1,0 +1,181 @@
+{
+	"info": {
+		"_postman_id": "3f636cb2-2fc3-4162-b108-83f1dc6d2189",
+		"name": "wallet",
+		"description": "# API Documentation\n\n---\n\n## 1\\. Deposit (Deposit to the specified user's wallet.)\n\n### Endpoint\n\n```\nPOST /wallet/deposit\n\n ```\n\n### Description\n\nIncrease the specified user's wallet balance by a specified amount while recording a DEPOSIT transaction.\n\n### Request Parameters\n\n**Body (JSON)**:\n\n| Field | Type | Required | Description |\n| --- | --- | --- | --- |\n| user_id | string | Yes | Target Wallet User ID |\n| amount | int64 | Yes | Must be greater than 0 |\n| currency | string | Yes | Currency code (e.g., \"USD\") |\n\n### Example Request\n\n```\nPOST /wallet/deposit\nContent-Type: application/json\n{\n  \"user_id\": \"00000000-0000-0000-0000-000000000001\",\n  \"amount\": 1000,\n  \"currency\": \"USD\"\n}\n\n ```\n\n### Example Response\n\n```\nHTTP/1.1 200 OK\nContent-Type: application/json\n{\"status\":\"success\"}\n\n ```\n\n### Possible Errors\n\n- `400 Bad Request`: invalid request body, invalid amount\n    \n- `404 Not Found`: wallet not found\n    \n- `500 Internal Server Error`: unexpected error\n    \n\n## 2\\. Withdraw (Withdraw from a Specified User's Wallet)\n\n### Endpoint\n\n```\nPOST /wallet/withdraw\n\n ```\n\n### Description\n\nDeduct a specified amount from a specified user's wallet (ensuring sufficient balance) and record a **WITHDRAW** transaction.\n\n### Request Parameters\n\n**Body (JSON):**\n\n| Field | Type | Required | Description |\n| --- | --- | --- | --- |\n| user_id | string | Yes | Target Wallet User ID |\n| amount | int64 | Yes | Withdrawal Amount (must be > 0) |\n| currency | string | Yes | Currency Code |\n\n### Example Request\n\n```\nPOST /wallet/withdraw\nContent-Type: application/json\n{\n  \"user_id\": \"00000000-0000-0000-0000-000000000001\",\n  \"amount\": 500,\n  \"currency\": \"USD\"\n}\n\n ```\n\n### Example Response\n\n```\nHTTP/1.1 200 OK\nContent-Type: application/json\n{\n  \"status\": \"success\"\n}\n\n ```\n\n### Possible Errors\n\n- **400 Bad Request**: Invalid request body, invalid amount, insufficient funds\n    \n- **404 Not Found**: Wallet not found\n    \n- **500 Internal Server Error**: Unexpected error\n    \n\n## 3\\. Transfer (Transfer Funds from One User to Another)\n\n### Endpoint\n\n```\nPOST /wallet/transfer\n\n ```\n\n### Description\n\nWithin a single transactional process, deduct the specified amount from the source user's wallet and deposit the same amount into the target user's wallet, while recording a **TRANSFER** transaction. If any stage fails, rollback the entire transaction.\n\n### Request Parameters\n\n**Body (JSON):**\n\n| Field | Type | Required | Description |\n| --- | --- | --- | --- |\n| from_user_id | string | Yes | Source User ID |\n| to_user_id | string | Yes | Target User ID |\n| amount | int64 | Yes | Transfer Amount (must be > 0) |\n| currency | string | Yes | Currency Code |\n\n### Example Request\n\n```\nPOST /wallet/transfer\nContent-Type: application/json\n{\n  \"from_user_id\": \"00000000-0000-0000-0000-000000000001\",\n  \"to_user_id\": \"00000000-0000-0000-0000-000000000002\",\n  \"amount\": 200,\n  \"currency\": \"USD\"\n}\n\n ```\n\n### Example Response\n\n```\nHTTP/1.1 200 OK\nContent-Type: application/json\n{\n  \"status\": \"success\"\n}\n\n ```\n\n### Possible Errors\n\n- **400 Bad Request**: Invalid request body, invalid amount, insufficient funds\n    \n- **404 Not Found**: Wallet not found for either `from_user` or `to_user`\n    \n- **500 Internal Server Error**: Unexpected error (including failure to commit transaction)\n    \n\n---\n\n## 4\\. Get Balance (Retrieve the Balance of a Specified User's Wallet)\n\n### Endpoint\n\n```\nGET /wallet/{user_id}/balance\n\n ```\n\n### Description\n\nRetrieve the balance of a specified user's wallet.\n\n### URL Parameters\n\n| Field | Required | Description |\n| --- | --- | --- |\n| user_id | Yes | ID of the user to query |\n\n### Example Request\n\n```\nGET /wallet/00000000-0000-0000-0000-000000000001/balance\n\n ```\n\n### Example Response\n\n```\nHTTP/1.1 200 OK\nContent-Type: application/json\n{\n  \"user_id\": \"00000000-0000-0000-0000-000000000001\",\n  \"balance\": 500\n}\n\n ```\n\n### Possible Errors\n\n- **404 Not Found**: Wallet not found\n    \n- **500 Internal Server Error**: Unexpected error\n    \n\n## 5\\. Get Transaction History (Retrieve Transaction Records for a Specified User)\n\n### Endpoint\n\n```\nGET /wallet/{user_id}/transactions\n\n ```\n\n### Description\n\nRetrieve transaction records related to a specified user (including transactions where the user is either the source or the target). Pagination can be performed using `limit` and `offset` parameters.\n\n### URL Parameters\n\n| Field | Required | Description |\n| --- | --- | --- |\n| user_id | Yes | ID of the target user |\n\n### Query Parameters\n\n| Parameter | Type | Required | Default | Description |\n| --- | --- | --- | --- | --- |\n| limit | int | No | 10 | Maximum number of records to return per request |\n| offset | int | No | 0 | Starting offset for pagination |\n\n### Example Request\n\n```\nGET /wallet/00000000-0000-0000-0000-000000000001/transactions?limit=5&offset=0\n\n ```\n\n### Example Response\n\n```\nHTTP/1.1 200 OK\nContent-Type: application/json\n[\n  {\n    \"id\": \"10000000-0000-0000-0000-000000000001\",\n    \"from_user_id\": \"00000000-0000-0000-0000-000000000001\",\n    \"to_user_id\": \"00000000-0000-0000-0000-000000000002\",\n    \"amount\": 200,\n    \"currency\": \"USD\",\n    \"type\": \"TRANSFER\",\n    \"created_at\": \"2024-01-10 14:30:00\"\n  },\n  {\n    \"id\": \"10000000-0000-0000-0000-000000000002\",\n    \"from_user_id\": \"\",\n    \"to_user_id\": \"00000000-0000-0000-0000-000000000001\",\n    \"amount\": 1000,\n    \"currency\": \"USD\",\n    \"type\": \"DEPOSIT\",\n    \"created_at\": \"2024-01-09 09:15:00\"\n  }\n]\n\n ```\n\n_(Returns an array where each element is a transaction record)_\n\n### Possible Errors\n\n- **400 Bad Request**: Invalid `limit`/`offset`, invalid `user_id`\n    \n- **404 Not Found**: No wallet or user found (if the user or transaction records are not found)\n    \n- **500 Internal Server Error**: Unexpected error",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "3117536"
+	},
+	"item": [
+		{
+			"name": "balance",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});"
+						],
+						"type": "text/javascript",
+						"packages": {}
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/wallet/00000000-0000-0000-0000-000000000001/balance",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"wallet",
+						"00000000-0000-0000-0000-000000000001",
+						"balance"
+					]
+				},
+				"description": "This is a GET request and it is used to \"get\" data from an endpoint. There is no request body for a GET request, but you can use query parameters to help specify the resource you want data on (e.g., in this request, we have `id=1`).\n\nA successful GET response will have a `200 OK` status, and should include some kind of response body - for example, HTML web content or JSON data."
+			},
+			"response": []
+		},
+		{
+			"name": "transactions",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/wallet/00000000-0000-0000-0000-000000000001/transactions?limit=10&offset=0",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"wallet",
+						"00000000-0000-0000-0000-000000000001",
+						"transactions"
+					],
+					"query": [
+						{
+							"key": "limit",
+							"value": "10"
+						},
+						{
+							"key": "offset",
+							"value": "0"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "deposit",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"user_id\": \"00000000-0000-0000-0000-000000000001\",\n    \"amount\": 100,\n    \"currency\": \"USD\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/wallet/deposit",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"wallet",
+						"deposit"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "withdraw",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"user_id\": \"00000000-0000-0000-0000-000000000001\",\n    \"amount\": 100,\n    \"currency\": \"USD\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/wallet/withdraw",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"wallet",
+						"withdraw"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "transfer",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"from_user_id\": \"00000000-0000-0000-0000-000000000001\",\n    \"to_user_id\": \"00000000-0000-0000-0000-000000000002\",\n    \"amount\": 100,\n    \"currency\": \"USD\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/wallet/transfer",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"wallet",
+						"transfer"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost"
+		}
+	]
+}

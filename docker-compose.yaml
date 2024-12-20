@@ -1,51 +1,26 @@
-version: '3.8'
-
-services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-    depends_on:
-      - redis
-      - postgres
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=rootp
-      - POSTGRES_DB=exchange
-    volumes:
-      - ./.data/redisdata:/data
-    networks:
-      - app-network
-
-  redis:
-    image: "redis:latest"
-    ports:
-      - "6379:6379"
-    networks:
-      - app-network
-
-  postgres:
-    image: "postgres:14"
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=root
-      - POSTGRES_PASSWORD=rootp
-      - POSTGRES_DB=exchange
-    volumes:
-      -  ./.data/pgdata:postgres-data:/var/lib/postgresql/data
-    networks:
-      - app-network
-
 networks:
   app-network:
     driver: bridge
 
-volumes:
-  postgres-data:
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./scripts/postgres/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - ./.data/pgdata:/var/lib/postgresql/data/pgdata
+    networks:
+      - app-network
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: example
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root"]
+      interval: 10s
+      start_period: 5s
+      timeout: 5s
+      retries: 5
+

@@ -1,8 +1,8 @@
 postgre:
   host: localhost
   port: 5432
-  user: myuser
-  password: mypass
+  user: root
+  password: example
   dbname: exchange
   sslmode: disable
 server:

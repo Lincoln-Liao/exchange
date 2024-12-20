@@ -7,10 +7,10 @@ import (
 )
 
 type TransactionUseCase struct {
-	transactionService *transaction.TransactionService
+	transactionService transaction.TransactionServiceInterface
 }
 
-func NewTransactionUseCase(tService *transaction.TransactionService) *TransactionUseCase {
+func NewTransactionUseCase(tService transaction.TransactionServiceInterface) *TransactionUseCase {
 	return &TransactionUseCase{
 		transactionService: tService,
 	}

@@ -4,6 +4,13 @@ import (
 	"context"
 )
 
+type WalletServiceInterface interface {
+	CreateNewWallet(ctx context.Context, userID, currency string) (Wallet, error)
+	Deposit(ctx context.Context, userID string, amount int64) error
+	Withdraw(ctx context.Context, userID string, amount int64) error
+	GetBalance(ctx context.Context, userID string) (int64, error)
+}
+
 type WalletService struct {
 	repository WalletRepository
 }

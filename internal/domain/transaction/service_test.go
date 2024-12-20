@@ -59,7 +59,7 @@ func TestLogTransaction(t *testing.T) {
 
 	ctx := context.Background()
 
-	tx, err := service.LogTransaction(ctx, "user_from", "user_to", 100, "TWD", transaction.TransactionTypeTransfer)
+	tx, err := service.LogTransaction(ctx, "user_from", "user_to", 100, "USD", transaction.TransactionTypeTransfer)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -67,12 +67,12 @@ func TestLogTransaction(t *testing.T) {
 		t.Errorf("transaction fields not set correctly: %+v", tx)
 	}
 
-	_, err = service.LogTransaction(ctx, "user_from", "user_to", 0, "TWD", transaction.TransactionTypeWithdraw)
+	_, err = service.LogTransaction(ctx, "user_from", "user_to", 0, "USD", transaction.TransactionTypeWithdraw)
 	if err != transaction.ErrInvalidTransactionAmount {
 		t.Errorf("expected ErrInvalidTransactionAmount, got %v", err)
 	}
 
-	_, err = service.LogTransaction(ctx, "user_from", "user_to", 100, "TWD", "INVALID_TYPE")
+	_, err = service.LogTransaction(ctx, "user_from", "user_to", 100, "USD", "INVALID_TYPE")
 	if err != transaction.ErrInvalidTransactionType {
 		t.Errorf("expected ErrInvalidTransactionType, got %v", err)
 	}
@@ -89,7 +89,7 @@ func TestGetTransactionHistory(t *testing.T) {
 		FromUserID: "userA",
 		ToUserID:   "userB",
 		Amount:     500,
-		Currency:   "TWD",
+		Currency:   "USD",
 		Type:       transaction.TransactionTypeTransfer,
 		CreatedAt:  time.Now(),
 	}
@@ -98,7 +98,7 @@ func TestGetTransactionHistory(t *testing.T) {
 		FromUserID: "userB",
 		ToUserID:   "userA",
 		Amount:     300,
-		Currency:   "TWD",
+		Currency:   "USD",
 		Type:       transaction.TransactionTypeTransfer,
 		CreatedAt:  time.Now(),
 	}

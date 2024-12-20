@@ -12,7 +12,7 @@ func TestNewTransaction(t *testing.T) {
 	fromUserID := "user_from"
 	toUserID := "user_to"
 	amount := int64(1000)
-	currency := "TWD"
+	currency := "USD"
 	tType := transaction.TransactionTypeTransfer
 
 	tx := transaction.NewTransaction(id, fromUserID, toUserID, amount, currency, tType)
@@ -54,19 +54,19 @@ func TestTransactionTypeConstants(t *testing.T) {
 }
 
 func TestNewTransactionInvalidAmount(t *testing.T) {
-	tx := transaction.NewTransaction("tx_abc", "user_from", "user_to", 0, "TWD", transaction.TransactionTypeWithdraw)
+	tx := transaction.NewTransaction("tx_abc", "user_from", "user_to", 0, "USD", transaction.TransactionTypeWithdraw)
 	if tx.Amount != 0 {
 		t.Errorf("expected Amount 0, got %d", tx.Amount)
 	}
 
-	tx = transaction.NewTransaction("tx_xyz", "user_from", "user_to", -100, "TWD", transaction.TransactionTypeDeposit)
+	tx = transaction.NewTransaction("tx_xyz", "user_from", "user_to", -100, "USD", transaction.TransactionTypeDeposit)
 	if tx.Amount != -100 {
 		t.Errorf("expected Amount -100, got %d", tx.Amount)
 	}
 }
 
 func TestCreatedAtIsSet(t *testing.T) {
-	tx := transaction.NewTransaction("tx_time", "uf", "ut", 500, "TWD", transaction.TransactionTypeDeposit)
+	tx := transaction.NewTransaction("tx_time", "uf", "ut", 500, "USD", transaction.TransactionTypeDeposit)
 	if tx.CreatedAt.IsZero() {
 		t.Error("expected CreatedAt to be set")
 	}

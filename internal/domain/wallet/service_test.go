@@ -61,15 +61,15 @@ func TestCreateNewWallet(t *testing.T) {
 	service := wallet.NewWalletService(repo)
 
 	ctx := context.Background()
-	w, err := service.CreateNewWallet(ctx, "user_1", "TWD")
+	w, err := service.CreateNewWallet(ctx, "user_1", "USD")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if w.UserID != "user_1" || w.Currency != "TWD" {
+	if w.UserID != "user_1" || w.Currency != "USD" {
 		t.Errorf("wallet created with wrong data: %+v", w)
 	}
 
-	_, err = service.CreateNewWallet(ctx, "user_1", "TWD")
+	_, err = service.CreateNewWallet(ctx, "user_1", "USD")
 	if err == nil {
 		t.Error("expected error for duplicate wallet, got nil")
 	}
@@ -80,7 +80,7 @@ func TestDeposit(t *testing.T) {
 	service := wallet.NewWalletService(repo)
 
 	ctx := context.Background()
-	w := wallet.NewWallet("user_2", "TWD")
+	w := wallet.NewWallet("user_2", "USD")
 	repo.wallets["user_2"] = w
 
 	if err := service.Deposit(ctx, "user_2", 100); err != nil {
@@ -110,7 +110,7 @@ func TestWithdraw(t *testing.T) {
 	w := wallet.Wallet{
 		UserID:    "user_3",
 		Balance:   200,
-		Currency:  "TWD",
+		Currency:  "USD",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -148,7 +148,7 @@ func TestGetBalance(t *testing.T) {
 	w := wallet.Wallet{
 		UserID:    "user_4",
 		Balance:   300,
-		Currency:  "TWD",
+		Currency:  "USD",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}

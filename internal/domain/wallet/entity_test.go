@@ -9,7 +9,7 @@ import (
 
 func TestNewWallet(t *testing.T) {
 	userID := "user_123"
-	currency := "TWD"
+	currency := "USD"
 	w := wallet.NewWallet(userID, currency)
 
 	if w.UserID != userID {
@@ -34,7 +34,7 @@ func TestAddBalance(t *testing.T) {
 	w := wallet.Wallet{
 		UserID:    "user_123",
 		Balance:   100,
-		Currency:  "TWD",
+		Currency:  "USD",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
@@ -52,7 +52,7 @@ func TestSubtractBalance(t *testing.T) {
 	w := wallet.Wallet{
 		UserID:    "user_123",
 		Balance:   100,
-		Currency:  "TWD",
+		Currency:  "USD",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}

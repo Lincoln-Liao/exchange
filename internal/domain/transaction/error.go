@@ -8,4 +8,5 @@ var (
 	ErrTransactionNotFound      = errors.New("transaction not found")
 	ErrInvalidUserID            = errors.New("invalid user ID")
 	ErrInvalidTransactionID     = errors.New("invalid transaction ID")
+	ErrDatabaseFailure          = errors.New("database failure")
 )
