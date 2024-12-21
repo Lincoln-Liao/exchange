@@ -37,7 +37,7 @@ func (s *TransactionService) LogTransaction(ctx context.Context, fromUserID, toU
 		return Transaction{}, err
 	}
 
-	tx := NewTransaction(id, fromUserID, toUserID, amount, currency, tType)
+	tx, err := NewTransaction(id, fromUserID, toUserID, amount, currency, tType)
 	if err := s.repository.CreateTransaction(ctx, tx); err != nil {
 		return Transaction{}, err
 	}

@@ -22,7 +22,13 @@ type Transaction struct {
 	CreatedAt  time.Time       // Transaction creation time
 }
 
-func NewTransaction(id, fromUserID, toUserID string, amount int64, currency string, tType TransactionType) Transaction {
+func NewTransaction(id, fromUserID, toUserID string, amount int64, currency string, tType TransactionType) (Transaction, error) {
+	if id == "" {
+		return Transaction{}, ErrInvalidTransactionID
+	}
+	if amount <= 0 {
+		return Transaction{}, ErrInvalidTransactionAmount
+	}
 	return Transaction{
 		ID:         id,
 		FromUserID: fromUserID,
@@ -31,5 +37,5 @@ func NewTransaction(id, fromUserID, toUserID string, amount int64, currency stri
 		Currency:   currency,
 		Type:       tType,
 		CreatedAt:  time.Now(),
-	}
+	}, nil
 }

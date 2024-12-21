@@ -1,165 +1,313 @@
-package transaction_test
+package transaction
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"exchange/internal/domain/transaction"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-type mockTransactionRepository struct {
-	transactions    map[string]transaction.Transaction
-	createErr       error
-	getByIDErr      error
-	listByUserIDErr error
+type MockTransactionRepository struct {
+	mock.Mock
 }
 
-func newMockTransactionRepository() *mockTransactionRepository {
-	return &mockTransactionRepository{
-		transactions: make(map[string]transaction.Transaction),
-	}
+func (m *MockTransactionRepository) CreateTransaction(ctx context.Context, tx Transaction) error {
+	args := m.Called(ctx, tx)
+	return args.Error(0)
 }
 
-func (m *mockTransactionRepository) CreateTransaction(ctx context.Context, tx transaction.Transaction) error {
-	if m.createErr != nil {
-		return m.createErr
-	}
-	m.transactions[tx.ID] = tx
-	return nil
+func (m *MockTransactionRepository) ListTransactionsByUserID(ctx context.Context, userID string, limit, offset int) ([]Transaction, error) {
+	args := m.Called(ctx, userID, limit, offset)
+	return args.Get(0).([]Transaction), args.Error(1)
 }
 
-func (m *mockTransactionRepository) GetTransactionByID(ctx context.Context, id string) (transaction.Transaction, error) {
-	if m.getByIDErr != nil {
-		return transaction.Transaction{}, m.getByIDErr
-	}
-	tx, exists := m.transactions[id]
-	if !exists {
-		return transaction.Transaction{}, transaction.ErrTransactionNotFound
-	}
-	return tx, nil
+func (m *MockTransactionRepository) GetTransactionByID(ctx context.Context, id string) (Transaction, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(Transaction), args.Error(1)
 }
 
-func (m *mockTransactionRepository) ListTransactionsByUserID(ctx context.Context, userID string, limit, offset int) ([]transaction.Transaction, error) {
-	if m.listByUserIDErr != nil {
-		return nil, m.listByUserIDErr
-	}
-	var result []transaction.Transaction
-	for _, tx := range m.transactions {
-		if tx.FromUserID == userID || tx.ToUserID == userID {
-			result = append(result, tx)
+func TestTransactionService_LogTransaction(t *testing.T) {
+	mockRepo := new(MockTransactionRepository)
+	service := NewTransactionService(mockRepo)
+
+	ctx := context.Background()
+
+	t.Run("successful log transaction (deposit)", func(t *testing.T) {
+		fromUserID := ""
+		toUserID := "user1"
+		amount := int64(1000)
+		currency := "USD"
+		tType := TransactionTypeDeposit
+
+		expectedTx := Transaction{
+			FromUserID: fromUserID,
+			ToUserID:   toUserID,
+			Amount:     amount,
+			Currency:   currency,
+			Type:       tType,
+			CreatedAt:  time.Now(),
 		}
-	}
-	return result, nil
+
+		mockRepo.On("CreateTransaction", mock.Anything, mock.MatchedBy(func(tx Transaction) bool {
+			return tx.FromUserID == expectedTx.FromUserID &&
+				tx.ToUserID == expectedTx.ToUserID &&
+				tx.Amount == expectedTx.Amount &&
+				tx.Currency == expectedTx.Currency &&
+				tx.Type == expectedTx.Type
+		})).Return(nil)
+
+		tx, err := service.LogTransaction(ctx, fromUserID, toUserID, amount, currency, tType)
+
+		assert.NoError(t, err)
+		assert.Equal(t, fromUserID, tx.FromUserID)
+		assert.Equal(t, toUserID, tx.ToUserID)
+		assert.Equal(t, amount, tx.Amount)
+		assert.Equal(t, currency, tx.Currency)
+		assert.Equal(t, tType, tx.Type)
+		assert.WithinDuration(t, time.Now(), tx.CreatedAt, time.Second)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("successful log transaction (withdraw)", func(t *testing.T) {
+		fromUserID := "user1"
+		toUserID := ""
+		amount := int64(500)
+		currency := "USD"
+		tType := TransactionTypeWithdraw
+
+		expectedTx := Transaction{
+			FromUserID: fromUserID,
+			ToUserID:   toUserID,
+			Amount:     amount,
+			Currency:   currency,
+			Type:       tType,
+			CreatedAt:  time.Now(),
+		}
+
+		mockRepo.On("CreateTransaction", mock.Anything, mock.MatchedBy(func(tx Transaction) bool {
+			return tx.FromUserID == expectedTx.FromUserID &&
+				tx.ToUserID == expectedTx.ToUserID &&
+				tx.Amount == expectedTx.Amount &&
+				tx.Currency == expectedTx.Currency &&
+				tx.Type == expectedTx.Type
+		})).Return(nil)
+
+		tx, err := service.LogTransaction(ctx, fromUserID, toUserID, amount, currency, tType)
+
+		assert.NoError(t, err)
+		assert.Equal(t, fromUserID, tx.FromUserID)
+		assert.Equal(t, toUserID, tx.ToUserID)
+		assert.Equal(t, amount, tx.Amount)
+		assert.Equal(t, currency, tx.Currency)
+		assert.Equal(t, tType, tx.Type)
+		assert.WithinDuration(t, time.Now(), tx.CreatedAt, time.Second)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("successful log transaction (transfer)", func(t *testing.T) {
+		fromUserID := "user1"
+		toUserID := "user2"
+		amount := int64(300)
+		currency := "USD"
+		tType := TransactionTypeTransfer
+
+		expectedTx := Transaction{
+			FromUserID: fromUserID,
+			ToUserID:   toUserID,
+			Amount:     amount,
+			Currency:   currency,
+			Type:       tType,
+			CreatedAt:  time.Now(),
+		}
+
+		mockRepo.On("CreateTransaction", mock.Anything, mock.MatchedBy(func(tx Transaction) bool {
+			return tx.FromUserID == expectedTx.FromUserID &&
+				tx.ToUserID == expectedTx.ToUserID &&
+				tx.Amount == expectedTx.Amount &&
+				tx.Currency == expectedTx.Currency &&
+				tx.Type == expectedTx.Type
+		})).Return(nil)
+
+		tx, err := service.LogTransaction(ctx, fromUserID, toUserID, amount, currency, tType)
+
+		assert.NoError(t, err)
+		assert.Equal(t, fromUserID, tx.FromUserID)
+		assert.Equal(t, toUserID, tx.ToUserID)
+		assert.Equal(t, amount, tx.Amount)
+		assert.Equal(t, currency, tx.Currency)
+		assert.Equal(t, tType, tx.Type)
+		assert.WithinDuration(t, time.Now(), tx.CreatedAt, time.Second)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("invalid amount", func(t *testing.T) {
+		fromUserID := "user1"
+		toUserID := "user2"
+		amount := int64(-100)
+		currency := "USD"
+		tType := TransactionTypeTransfer
+
+		tx, err := service.LogTransaction(ctx, fromUserID, toUserID, amount, currency, tType)
+
+		assert.Error(t, err)
+		assert.Equal(t, Transaction{}, tx)
+		assert.EqualError(t, err, ErrInvalidTransactionAmount.Error())
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("invalid transaction type", func(t *testing.T) {
+		fromUserID := "user1"
+		toUserID := "user2"
+		amount := int64(100)
+		currency := "USD"
+		tType := TransactionType("INVALID_TYPE")
+
+		tx, err := service.LogTransaction(ctx, fromUserID, toUserID, amount, currency, tType)
+
+		assert.Error(t, err)
+		assert.Equal(t, Transaction{}, tx)
+		assert.EqualError(t, err, ErrInvalidTransactionType.Error())
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("repository create transaction failure", func(t *testing.T) {
+		fromUserID := "user1"
+		toUserID := "user2"
+		amount := int64(100)
+		currency := "USD"
+		tType := TransactionTypeTransfer
+
+		mockRepo.On("CreateTransaction", mock.Anything, mock.MatchedBy(func(tx Transaction) bool {
+			return tx.FromUserID == fromUserID &&
+				tx.ToUserID == toUserID &&
+				tx.Amount == amount &&
+				tx.Currency == currency &&
+				tx.Type == tType
+		})).Return(ErrDatabaseFailure)
+
+		tx, err := service.LogTransaction(ctx, fromUserID, toUserID, amount, currency, tType)
+
+		assert.Error(t, err)
+		assert.Equal(t, Transaction{}, tx)
+		assert.EqualError(t, err, ErrDatabaseFailure.Error())
+
+		mockRepo.AssertExpectations(t)
+	})
 }
 
-func TestLogTransaction(t *testing.T) {
-	repo := newMockTransactionRepository()
-	service := transaction.NewTransactionService(repo)
+func TestTransactionService_GetTransactionHistory(t *testing.T) {
+	mockRepo := new(MockTransactionRepository)
+	service := NewTransactionService(mockRepo)
 
 	ctx := context.Background()
 
-	tx, err := service.LogTransaction(ctx, "user_from", "user_to", 100, "USD", transaction.TransactionTypeTransfer)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if tx.Amount != 100 || tx.FromUserID != "user_from" || tx.ToUserID != "user_to" || tx.Type != transaction.TransactionTypeTransfer {
-		t.Errorf("transaction fields not set correctly: %+v", tx)
-	}
+	t.Run("successful get transaction history", func(t *testing.T) {
+		userID := "user1"
+		limit := 10
+		offset := 0
 
-	_, err = service.LogTransaction(ctx, "user_from", "user_to", 0, "USD", transaction.TransactionTypeWithdraw)
-	if err != transaction.ErrInvalidTransactionAmount {
-		t.Errorf("expected ErrInvalidTransactionAmount, got %v", err)
-	}
+		expectedTxs := []Transaction{
+			{
+				ID:         "tx1",
+				FromUserID: "",
+				ToUserID:   "user1",
+				Amount:     1000,
+				Currency:   "USD",
+				Type:       TransactionTypeDeposit,
+				CreatedAt:  time.Now(),
+			},
+			{
+				ID:         "tx2",
+				FromUserID: "user1",
+				ToUserID:   "user2",
+				Amount:     500,
+				Currency:   "USD",
+				Type:       TransactionTypeTransfer,
+				CreatedAt:  time.Now(),
+			},
+		}
 
-	_, err = service.LogTransaction(ctx, "user_from", "user_to", 100, "USD", "INVALID_TYPE")
-	if err != transaction.ErrInvalidTransactionType {
-		t.Errorf("expected ErrInvalidTransactionType, got %v", err)
-	}
+		mockRepo.On("ListTransactionsByUserID", ctx, userID, limit, offset).Return(expectedTxs, nil)
+
+		txs, err := service.GetTransactionHistory(ctx, userID, limit, offset)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedTxs, txs)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("invalid user ID", func(t *testing.T) {
+		userID := ""
+		limit := 10
+		offset := 0
+
+		txs, err := service.GetTransactionHistory(ctx, userID, limit, offset)
+
+		assert.Error(t, err)
+		assert.Equal(t, []Transaction(nil), txs)
+		assert.EqualError(t, err, ErrInvalidUserID.Error())
+
+		mockRepo.AssertExpectations(t)
+	})
 }
 
-func TestGetTransactionHistory(t *testing.T) {
-	repo := newMockTransactionRepository()
-	service := transaction.NewTransactionService(repo)
+func TestTransactionService_GetTransactionByID(t *testing.T) {
+	mockRepo := new(MockTransactionRepository)
+	service := NewTransactionService(mockRepo)
 
 	ctx := context.Background()
 
-	tx1 := transaction.Transaction{
-		ID:         "tx_1",
-		FromUserID: "userA",
-		ToUserID:   "userB",
-		Amount:     500,
-		Currency:   "USD",
-		Type:       transaction.TransactionTypeTransfer,
-		CreatedAt:  time.Now(),
-	}
-	tx2 := transaction.Transaction{
-		ID:         "tx_2",
-		FromUserID: "userB",
-		ToUserID:   "userA",
-		Amount:     300,
-		Currency:   "USD",
-		Type:       transaction.TransactionTypeTransfer,
-		CreatedAt:  time.Now(),
-	}
-	repo.transactions["tx_1"] = tx1
-	repo.transactions["tx_2"] = tx2
+	t.Run("successful get transaction by ID", func(t *testing.T) {
+		id := "tx1"
+		expectedTx := Transaction{
+			ID:         id,
+			FromUserID: "",
+			ToUserID:   "user1",
+			Amount:     1000,
+			Currency:   "USD",
+			Type:       TransactionTypeDeposit,
+			CreatedAt:  time.Now(),
+		}
 
-	_, err := service.GetTransactionHistory(ctx, "", 10, 0)
-	if err != transaction.ErrInvalidUserID {
-		t.Errorf("expected ErrInvalidUserID, got %v", err)
-	}
+		mockRepo.On("GetTransactionByID", ctx, id).Return(expectedTx, nil)
 
-	txs, err := service.GetTransactionHistory(ctx, "userA", 10, 0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(txs) != 2 {
-		t.Errorf("expected 2 transactions, got %d", len(txs))
-	}
+		tx, err := service.GetTransactionByID(ctx, id)
 
-	txs, err = service.GetTransactionHistory(ctx, "userC", 10, 0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(txs) != 0 {
-		t.Errorf("expected 0 transactions for userC, got %d", len(txs))
-	}
-}
+		assert.NoError(t, err)
+		assert.Equal(t, expectedTx, tx)
+		mockRepo.AssertExpectations(t)
+	})
 
-func TestGetTransactionByID(t *testing.T) {
-	repo := newMockTransactionRepository()
-	service := transaction.NewTransactionService(repo)
+	t.Run("invalid transaction ID", func(t *testing.T) {
+		id := ""
 
-	ctx := context.Background()
-	txID := "tx_abc"
+		tx, err := service.GetTransactionByID(ctx, id)
 
-	_, err := service.GetTransactionByID(ctx, txID)
-	if err != transaction.ErrTransactionNotFound {
-		t.Errorf("expected ErrTransactionNotFound, got %v", err)
-	}
+		assert.Error(t, err)
+		assert.Equal(t, Transaction{}, tx)
+		assert.EqualError(t, err, ErrInvalidTransactionID.Error())
 
-	_, err = service.GetTransactionByID(ctx, "")
-	if err != transaction.ErrInvalidTransactionID {
-		t.Errorf("expected ErrInvalidTransactionID, got %v", err)
-	}
+		mockRepo.AssertExpectations(t)
+	})
 
-	tx := transaction.Transaction{
-		ID:         txID,
-		FromUserID: "userX",
-		ToUserID:   "userY",
-		Amount:     1000,
-		Currency:   "USD",
-		Type:       transaction.TransactionTypeDeposit,
-		CreatedAt:  time.Now(),
-	}
-	repo.transactions[txID] = tx
+	t.Run("transaction not found", func(t *testing.T) {
+		id := "tx999"
 
-	gotTx, err := service.GetTransactionByID(ctx, txID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if gotTx.ID != txID || gotTx.Amount != 1000 || gotTx.Type != transaction.TransactionTypeDeposit {
-		t.Errorf("got transaction mismatch, expected %+v, got %+v", tx, gotTx)
-	}
+		mockRepo.On("GetTransactionByID", ctx, id).Return(Transaction{}, ErrTransactionNotFound)
+
+		tx, err := service.GetTransactionByID(ctx, id)
+
+		assert.Error(t, err)
+		assert.Equal(t, Transaction{}, tx)
+		assert.Equal(t, ErrTransactionNotFound, err)
+
+		mockRepo.AssertExpectations(t)
+	})
 }

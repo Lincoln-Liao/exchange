@@ -1,169 +1,254 @@
-package wallet_test
+package wallet
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
-	"exchange/internal/domain/wallet"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
-type mockWalletRepository struct {
-	wallets   map[string]wallet.Wallet
-	createErr error
-	updateErr error
-	getErr    error
+type MockWalletRepository struct {
+	mock.Mock
 }
 
-func newMockWalletRepository() *mockWalletRepository {
-	return &mockWalletRepository{
-		wallets: make(map[string]wallet.Wallet),
-	}
+func (m *MockWalletRepository) CreateWallet(ctx context.Context, w Wallet) error {
+	args := m.Called(ctx, w)
+	return args.Error(0)
 }
 
-func (m *mockWalletRepository) CreateWallet(ctx context.Context, w wallet.Wallet) error {
-	if m.createErr != nil {
-		return m.createErr
-	}
-	if _, exists := m.wallets[w.UserID]; exists {
-		return errors.New("wallet already exists")
-	}
-	m.wallets[w.UserID] = w
-	return nil
+func (m *MockWalletRepository) GetWalletByUserID(ctx context.Context, userID string) (Wallet, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).(Wallet), args.Error(1)
 }
 
-func (m *mockWalletRepository) GetWalletByUserID(ctx context.Context, userID string) (wallet.Wallet, error) {
-	if m.getErr != nil {
-		return wallet.Wallet{}, m.getErr
-	}
-	w, exists := m.wallets[userID]
-	if !exists {
-		return wallet.Wallet{}, wallet.ErrWalletNotFound
-	}
-	return w, nil
+func (m *MockWalletRepository) UpdateWallet(ctx context.Context, w Wallet) error {
+	args := m.Called(ctx, w)
+	return args.Error(0)
 }
 
-func (m *mockWalletRepository) UpdateWallet(ctx context.Context, w wallet.Wallet) error {
-	if m.updateErr != nil {
-		return m.updateErr
-	}
-	_, exists := m.wallets[w.UserID]
-	if !exists {
-		return wallet.ErrWalletNotFound
-	}
-	m.wallets[w.UserID] = w
-	return nil
-}
-
-func TestCreateNewWallet(t *testing.T) {
-	repo := newMockWalletRepository()
-	service := wallet.NewWalletService(repo)
+func TestWalletService_CreateNewWallet(t *testing.T) {
+	mockRepo := new(MockWalletRepository)
+	service := NewWalletService(mockRepo)
 
 	ctx := context.Background()
-	w, err := service.CreateNewWallet(ctx, "user_1", "USD")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if w.UserID != "user_1" || w.Currency != "USD" {
-		t.Errorf("wallet created with wrong data: %+v", w)
-	}
+	userID := "user123"
+	currency := "USD"
 
-	_, err = service.CreateNewWallet(ctx, "user_1", "USD")
-	if err == nil {
-		t.Error("expected error for duplicate wallet, got nil")
-	}
+	t.Run("successful wallet creation", func(t *testing.T) {
+		expectedWallet := Wallet{
+			UserID:    userID,
+			Balance:   0,
+			Currency:  currency,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		mockRepo.On("CreateWallet", ctx, mock.MatchedBy(func(w Wallet) bool {
+			return w.UserID == expectedWallet.UserID &&
+				w.Balance == expectedWallet.Balance &&
+				w.Currency == expectedWallet.Currency
+		})).Return(nil)
+
+		w, err := service.CreateNewWallet(ctx, userID, currency)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedWallet.UserID, w.UserID)
+		assert.Equal(t, expectedWallet.Balance, w.Balance)
+		assert.Equal(t, expectedWallet.Currency, w.Currency)
+		assert.WithinDuration(t, time.Now(), w.CreatedAt, time.Second)
+		assert.WithinDuration(t, time.Now(), w.UpdatedAt, time.Second)
+
+		mockRepo.AssertExpectations(t)
+	})
 }
 
-func TestDeposit(t *testing.T) {
-	repo := newMockWalletRepository()
-	service := wallet.NewWalletService(repo)
+func TestWalletService_Deposit(t *testing.T) {
+	mockRepo := new(MockWalletRepository)
+	service := NewWalletService(mockRepo)
 
 	ctx := context.Background()
-	w := wallet.NewWallet("user_2", "USD")
-	repo.wallets["user_2"] = w
+	userID := "user123"
+	initialBalance := int64(1000)
+	depositAmount := int64(500)
+	currency := "USD"
 
-	if err := service.Deposit(ctx, "user_2", 100); err != nil {
-		t.Errorf("unexpected error on deposit: %v", err)
-	}
-	w2, _ := repo.GetWalletByUserID(ctx, "user_2")
-	if w2.Balance != 100 {
-		t.Errorf("expected balance 100, got %d", w2.Balance)
-	}
-
-	err := service.Deposit(ctx, "user_2", 0)
-	if err != wallet.ErrInvalidAmount {
-		t.Errorf("expected ErrInvalidAmount, got %v", err)
-	}
-
-	err = service.Deposit(ctx, "nonexistent_user", 50)
-	if err != wallet.ErrWalletNotFound {
-		t.Errorf("expected ErrWalletNotFound, got %v", err)
-	}
-}
-
-func TestWithdraw(t *testing.T) {
-	repo := newMockWalletRepository()
-	service := wallet.NewWalletService(repo)
-
-	ctx := context.Background()
-	w := wallet.Wallet{
-		UserID:    "user_3",
-		Balance:   200,
-		Currency:  "USD",
+	existingWallet := Wallet{
+		UserID:    userID,
+		Balance:   initialBalance,
+		Currency:  currency,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	repo.wallets["user_3"] = w
 
-	if err := service.Withdraw(ctx, "user_3", 100); err != nil {
-		t.Errorf("unexpected error on withdraw: %v", err)
-	}
-	w3, _ := repo.GetWalletByUserID(ctx, "user_3")
-	if w3.Balance != 100 {
-		t.Errorf("expected balance 100 after withdraw, got %d", w3.Balance)
-	}
+	t.Run("successful deposit", func(t *testing.T) {
+		mockRepo.On("GetWalletByUserID", ctx, userID).Return(existingWallet, nil)
 
-	err := service.Withdraw(ctx, "user_3", 200)
-	if err != wallet.ErrInsufficientFunds {
-		t.Errorf("expected ErrInsufficientFunds, got %v", err)
-	}
+		updatedWallet := existingWallet
+		updatedWallet.AddBalance(depositAmount)
 
-	err = service.Withdraw(ctx, "user_3", 0)
-	if err != wallet.ErrInvalidAmount {
-		t.Errorf("expected ErrInvalidAmount, got %v", err)
-	}
+		mockRepo.On("UpdateWallet", ctx, mock.MatchedBy(func(w Wallet) bool {
+			return w.Balance == initialBalance+depositAmount &&
+				w.UserID == userID &&
+				w.Currency == currency
+		})).Return(nil)
 
-	err = service.Withdraw(ctx, "nonexistent_user", 50)
-	if err != wallet.ErrWalletNotFound {
-		t.Errorf("expected ErrWalletNotFound, got %v", err)
-	}
+		err := service.Deposit(ctx, userID, depositAmount)
+
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("invalid amount (zero)", func(t *testing.T) {
+		err := service.Deposit(ctx, userID, 0)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrInvalidAmount, err)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("invalid amount (negative)", func(t *testing.T) {
+		err := service.Deposit(ctx, userID, -100)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrInvalidAmount, err)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("wallet not found", func(t *testing.T) {
+		mockRepo.On("GetWalletByUserID", ctx, "userempty").Return(Wallet{}, ErrWalletNotFound)
+
+		err := service.Deposit(ctx, "userempty", depositAmount)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrWalletNotFound, err)
+
+		mockRepo.AssertExpectations(t)
+	})
 }
 
-func TestGetBalance(t *testing.T) {
-	repo := newMockWalletRepository()
-	service := wallet.NewWalletService(repo)
+// TestWalletService_Withdraw 測試 Withdraw 方法
+func TestWalletService_Withdraw(t *testing.T) {
+	mockRepo := new(MockWalletRepository)
+	service := NewWalletService(mockRepo)
 
 	ctx := context.Background()
-	w := wallet.Wallet{
-		UserID:    "user_4",
-		Balance:   300,
-		Currency:  "USD",
+	userID := "user123"
+	initialBalance := int64(1000)
+	withdrawAmount := int64(500)
+	currency := "USD"
+
+	existingWallet := Wallet{
+		UserID:    userID,
+		Balance:   initialBalance,
+		Currency:  currency,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	repo.wallets["user_4"] = w
 
-	bal, err := service.GetBalance(ctx, "user_4")
-	if err != nil {
-		t.Fatalf("unexpected error on getBalance: %v", err)
-	}
-	if bal != 300 {
-		t.Errorf("expected balance 300, got %d", bal)
+	t.Run("successful withdraw", func(t *testing.T) {
+		// Setup expectations
+		mockRepo.On("GetWalletByUserID", ctx, userID).Return(existingWallet, nil)
+
+		updatedWallet := existingWallet
+		updatedWallet.SubtractBalance(withdrawAmount)
+
+		mockRepo.On("UpdateWallet", ctx, mock.MatchedBy(func(w Wallet) bool {
+			return w.Balance == initialBalance-withdrawAmount &&
+				w.UserID == userID &&
+				w.Currency == currency
+		})).Return(nil)
+
+		err := service.Withdraw(ctx, userID, withdrawAmount)
+
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("invalid amount (zero)", func(t *testing.T) {
+		err := service.Withdraw(ctx, userID, 0)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrInvalidAmount, err)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("invalid amount (negative)", func(t *testing.T) {
+		err := service.Withdraw(ctx, userID, -100)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrInvalidAmount, err)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("wallet not found", func(t *testing.T) {
+		mockRepo.On("GetWalletByUserID", ctx, "userempty").Return(Wallet{}, ErrWalletNotFound)
+
+		err := service.Withdraw(ctx, "userempty", withdrawAmount)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrWalletNotFound, err)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("insufficient funds", func(t *testing.T) {
+		withdrawAmount := int64(1500)
+
+		mockRepo.On("GetWalletByUserID", ctx, userID).Return(existingWallet, nil)
+
+		err := service.Withdraw(ctx, userID, withdrawAmount)
+
+		assert.Error(t, err)
+		assert.Equal(t, ErrInsufficientFunds, err)
+
+		mockRepo.AssertExpectations(t)
+	})
+}
+
+// TestWalletService_GetBalance 測試 GetBalance 方法
+func TestWalletService_GetBalance(t *testing.T) {
+	mockRepo := new(MockWalletRepository)
+	service := NewWalletService(mockRepo)
+
+	ctx := context.Background()
+	userID := "user123"
+	initialBalance := int64(1000)
+	currency := "USD"
+
+	existingWallet := Wallet{
+		UserID:    userID,
+		Balance:   initialBalance,
+		Currency:  currency,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
-	_, err = service.GetBalance(ctx, "nonexistent_user")
-	if err != wallet.ErrWalletNotFound {
-		t.Errorf("expected ErrWalletNotFound, got %v", err)
-	}
+	t.Run("successful get balance", func(t *testing.T) {
+		mockRepo.On("GetWalletByUserID", ctx, userID).Return(existingWallet, nil)
+
+		balance, err := service.GetBalance(ctx, userID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, initialBalance, balance)
+
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("wallet not found", func(t *testing.T) {
+		mockRepo.On("GetWalletByUserID", ctx, "userempty").Return(Wallet{}, ErrWalletNotFound)
+
+		balance, err := service.GetBalance(ctx, "userempty")
+
+		assert.Error(t, err)
+		assert.Equal(t, int64(0), balance)
+		assert.Equal(t, ErrWalletNotFound, err)
+
+		mockRepo.AssertExpectations(t)
+	})
 }

@@ -84,7 +84,7 @@ func (s *WalletService) GetBalance(ctx context.Context, userID string) (int64, e
 		if err == ErrWalletNotFound {
 			return 0, ErrWalletNotFound
 		}
-		return 0, err
+		return 0, ErrDatabaseFailure
 	}
 	return w.Balance, nil
 }
